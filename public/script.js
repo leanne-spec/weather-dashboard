@@ -5,6 +5,17 @@ const locationBtn = document.getElementById('locationBtn');
 const loadingSpinner = document.getElementById('loadingSpinner');
 const errorMessage = document.getElementById('errorMessage');
 
+let activeRequest = 0;
+
+function beginRequest() {
+  const requestId = ++activeRequest;
+  document.getElementById('forecastContainer').style.display = 'none';
+  document.getElementById('forecastCards').innerHTML = '';
+  hideError();
+  showLoading(true);
+  return requestId;
+}
+
 // Event listeners
 searchBtn.addEventListener('click', () => searchWeather());
 cityInput.addEventListener('keypress', (e) => {
@@ -20,8 +31,16 @@ async function searchWeather() {
     return;
   }
   
-  await fetchWeather(`${API_BASE}/current/${city}`);
-  await fetchForecast(`${API_BASE}/forecast/${city}`);
+  const requestId = beginRequest();
+  const encodedCity = encodeURIComponent(city);
+  try {
+    const weather = await fetchWeather(`${API_BASE}/current/${encodedCity}`, requestId);
+    if (weather && requestId === activeRequest) {
+      await fetchForecast(`${API_BASE}/forecast/${encodedCity}`, requestId);
+    }
+  } finally {
+    if (requestId === activeRequest) showLoading(false);
+  }
 }
 
 // Use geolocation
@@ -31,14 +50,16 @@ function useGeolocation() {
     return;
   }
   
-  showLoading(true);
+  const requestId = beginRequest();
   navigator.geolocation.getCurrentPosition(
     async (position) => {
+      if (requestId !== activeRequest) return;
       const { latitude, longitude } = position.coords;
-      await fetchWeather(`${API_BASE}/coords?lat=${latitude}&lon=${longitude}`);
-      showLoading(false);
+      await fetchWeather(`${API_BASE}/coords?lat=${latitude}&lon=${longitude}`, requestId);
+      if (requestId === activeRequest) showLoading(false);
     },
     (error) => {
+      if (requestId !== activeRequest) return;
       showLoading(false);
       showError('Unable to access your location: ' + error.message);
     }
@@ -46,39 +67,32 @@ function useGeolocation() {
 }
 
 // Fetch weather data
-async function fetchWeather(url) {
+async function fetchWeather(url, requestId) {
   try {
-    showLoading(true);
-    hideError();
-    
     const response = await fetch(url);
     if (!response.ok) throw new Error('Weather not found');
-    
     const result = await response.json();
-    if (result.success) {
-      displayWeather(result.data);
-    } else {
-      showError(result.error || 'Failed to fetch weather');
-    }
+    if (requestId !== activeRequest) return null;
+    if (!result.success) throw new Error(result.error || 'Failed to fetch weather');
+    displayWeather(result.data);
+    return result.data;
   } catch (error) {
-    showError(error.message);
-  } finally {
-    showLoading(false);
+    if (requestId === activeRequest) showError(error.message);
+    return null;
   }
 }
 
 // Fetch forecast data
-async function fetchForecast(url) {
+async function fetchForecast(url, requestId) {
   try {
     const response = await fetch(url);
-    if (!response.ok) return;
-    
+    if (!response.ok) throw new Error('Unable to load the forecast. Please try again.');
     const result = await response.json();
-    if (result.success) {
-      displayForecast(result.data.forecast);
-    }
+    if (requestId !== activeRequest) return;
+    if (!result.success) throw new Error(result.error || 'Failed to fetch forecast');
+    displayForecast(result.data.forecast);
   } catch (error) {
-    console.error('Forecast fetch error:', error);
+    if (requestId === activeRequest) showError(error.message);
   }
 }
 
