@@ -15,6 +15,24 @@ const instance = axios.create({
   timeout: 5000
 });
 
+function formatCurrentWeather(weather) {
+  return {
+    city: weather.name,
+    country: weather.sys.country,
+    temperature: weather.main.temp,
+    feelsLike: weather.main.feels_like,
+    humidity: weather.main.humidity,
+    pressure: weather.main.pressure,
+    description: weather.weather[0].description,
+    icon: weather.weather[0].icon,
+    wind: weather.wind.speed,
+    cloudiness: weather.clouds.all,
+    visibility: weather.visibility,
+    sunrise: new Date(weather.sys.sunrise * 1000),
+    sunset: new Date(weather.sys.sunset * 1000)
+  };
+}
+
 // Get current weather
 exports.getCurrentWeather = async (city, units = 'metric') => {
   const cacheKey = `weather_${city}_${units}`;
@@ -33,21 +51,7 @@ exports.getCurrentWeather = async (city, units = 'metric') => {
       }
     });
     
-    const data = {
-      city: response.data.name,
-      country: response.data.sys.country,
-      temperature: response.data.main.temp,
-      feelsLike: response.data.main.feels_like,
-      humidity: response.data.main.humidity,
-      pressure: response.data.main.pressure,
-      description: response.data.weather[0].description,
-      icon: response.data.weather[0].icon,
-      wind: response.data.wind.speed,
-      cloudiness: response.data.clouds.all,
-      visibility: response.data.visibility,
-      sunrise: new Date(response.data.sys.sunrise * 1000),
-      sunset: new Date(response.data.sys.sunset * 1000)
-    };
+    const data = formatCurrentWeather(response.data);
     
     cache.set(cacheKey, data);
     return data;
@@ -76,18 +80,7 @@ exports.getWeatherByCoords = async (lat, lon, units = 'metric') => {
       }
     });
     
-    const data = {
-      city: response.data.name,
-      country: response.data.sys.country,
-      temperature: response.data.main.temp,
-      feelsLike: response.data.main.feels_like,
-      humidity: response.data.main.humidity,
-      pressure: response.data.main.pressure,
-      description: response.data.weather[0].description,
-      icon: response.data.weather[0].icon,
-      wind: response.data.wind.speed,
-      cloudiness: response.data.clouds.all
-    };
+    const data = formatCurrentWeather(response.data);
     
     cache.set(cacheKey, data);
     return data;
